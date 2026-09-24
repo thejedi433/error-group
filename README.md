@@ -29,6 +29,15 @@ error-group app.log --json
 
 # Adjust similarity threshold (0.0-1.0)
 error-group app.log --threshold 0.9
+
+# Filter errors from the last hour
+error-group app.log --since 1h
+
+# Filter errors from the last 30 minutes
+error-group app.log --since 30m
+
+# Filter errors from the last 2 days
+error-group app.log --since 2d
 ```
 
 ## Example output

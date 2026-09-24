@@ -66,6 +66,8 @@ Examples:
     parser.add_argument('files', nargs='*', help='Log files to analyze (reads stdin if omitted)')
     parser.add_argument('--threshold', type=float, default=0.85,
                        help='Similarity threshold for grouping (0.0-1.0, default: 0.85)')
+    parser.add_argument('--since', type=str, metavar='TIME',
+                       help='Filter errors newer than TIME (e.g., 1h, 30m, 1d, 2w)')
     parser.add_argument('--json', action='store_true', help='Output as JSON')
     
     args = parser.parse_args()
@@ -79,6 +81,18 @@ Examples:
     if not errors:
         print("No errors found in input.", file=sys.stderr)
         sys.exit(0)
+    
+    # Apply time filter if specified
+    if args.since:
+        grouper_for_filter = ErrorGrouper()
+        try:
+            errors = grouper_for_filter.filter_by_time(errors, args.since)
+        except ValueError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+        if not errors:
+            print(f"No errors found in the last {args.since}.", file=sys.stderr)
+            sys.exit(0)
     
     # Group errors
     grouper = ErrorGrouper(similarity_threshold=args.threshold)

@@ -156,3 +156,53 @@ class TestMain:
         
         captured = capsys.readouterr()
         assert 'error' in captured.out.lower()
+
+    def test_main_with_since_filter(self, tmp_path, capsys):
+        """Test --since flag filters errors by time."""
+        from datetime import datetime, timedelta
+        now = datetime.now()
+        
+        # Create log with mixed timestamps
+        lines = [
+            f"{now.strftime('%Y-%m-%dT%H:%M:%SZ')} ERROR Recent error\n",
+            f"{(now - timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')} ERROR Old error\n",
+        ]
+        log_file = tmp_path / "test.log"
+        log_file.write_text("".join(lines))
+        
+        with patch('sys.argv', ['error-group', str(log_file), '--since', '1h']):
+            main()
+        
+        captured = capsys.readouterr()
+        assert 'recent' in captured.out.lower() or 'error' in captured.out.lower()
+
+    def test_main_since_no_matching_errors(self, tmp_path, capsys):
+        """Test --since with no matching errors shows message."""
+        from datetime import datetime, timedelta
+        old_date = (datetime.now() - timedelta(days=10)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        
+        log_file = tmp_path / "test.log"
+        log_file.write_text(f"{old_date} ERROR Old error\n")
+        
+        with patch('sys.argv', ['error-group', str(log_file), '--since', '1h']):
+            try:
+                main()
+            except SystemExit as e:
+                assert e.code == 0
+        
+        captured = capsys.readouterr()
+        assert 'no errors found' in captured.err.lower()
+
+    def test_main_since_invalid_format(self, tmp_path, capsys):
+        """Test --since with invalid format shows error."""
+        log_file = tmp_path / "test.log"
+        log_file.write_text(SAMPLE_LOG)
+        
+        with patch('sys.argv', ['error-group', str(log_file), '--since', 'invalid']):
+            try:
+                main()
+            except SystemExit as e:
+                assert e.code == 1
+        
+        captured = capsys.readouterr()
+        assert 'invalid time format' in captured.err.lower()

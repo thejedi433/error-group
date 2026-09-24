@@ -2,7 +2,9 @@
 
 import re
 from collections import defaultdict
+from datetime import datetime, timedelta
 from difflib import SequenceMatcher
+from typing import Optional, Tuple
 
 
 class ErrorGrouper:
@@ -36,6 +38,71 @@ class ErrorGrouper:
         # Collapse whitespace
         text = re.sub(r'\s+', ' ', text).strip()
         return text
+    
+    def extract_timestamp(self, text: str) -> Optional[datetime]:
+        """Extract timestamp from log line if present."""
+        # Try ISO 8601 formats
+        patterns = [
+            r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)',
+            r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?)',
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, text)
+            if match:
+                ts_str = match.group(1)
+                # Try parsing with various formats
+                for fmt in [
+                    '%Y-%m-%dT%H:%M:%S.%fZ',
+                    '%Y-%m-%dT%H:%M:%SZ',
+                    '%Y-%m-%dT%H:%M:%S.%f',
+                    '%Y-%m-%dT%H:%M:%S',
+                    '%Y-%m-%d %H:%M:%S.%f',
+                    '%Y-%m-%d %H:%M:%S',
+                ]:
+                    try:
+                        # Remove timezone info for naive datetime comparison
+                        clean_ts = re.sub(r'[+-]\d{2}:?\d{2}$', '', ts_str)
+                        return datetime.strptime(clean_ts, fmt)
+                    except ValueError:
+                        continue
+        return None
+    
+    def filter_by_time(self, errors: list, since: str) -> list:
+        """Filter errors by time range.
+        
+        Args:
+            errors: List of error strings
+            since: Time range string (e.g., '1h', '30m', '1d', '2w')
+        
+        Returns:
+            Filtered list of errors
+        """
+        # Parse time range
+        match = re.match(r'^(\d+)([smhdw])$', since.lower())
+        if not match:
+            raise ValueError(f"Invalid time format: {since}. Use format like '1h', '30m', '1d'")
+        
+        amount = int(match.group(1))
+        unit = match.group(2)
+        
+        # Convert to timedelta
+        unit_map = {'s': 'seconds', 'm': 'minutes', 'h': 'hours', 'd': 'days', 'w': 'weeks'}
+        delta = timedelta(**{unit_map[unit]: amount})
+        
+        cutoff: datetime = datetime.now() - delta
+        
+        # Filter errors
+        filtered = []
+        for error in errors:
+            ts = self.extract_timestamp(error)
+            if ts is None:
+                # If no timestamp, include by default (backward compatibility)
+                filtered.append(error)
+            elif ts >= cutoff:
+                filtered.append(error)
+        
+        return filtered
     
     def similarity(self, s1, s2):
         """Calculate similarity ratio between two strings."""
