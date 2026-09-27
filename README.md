@@ -38,6 +38,11 @@ error-group app.log --since 30m
 
 # Filter errors from the last 2 days
 error-group app.log --since 2d
+
+# Filter by severity level
+error-group app.log --level ERROR
+error-group app.log --level CRITICAL
+error-group app.log --level ERROR --level WARNING
 ```
 
 ## Example output

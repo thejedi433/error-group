@@ -8,9 +8,20 @@ from pathlib import Path
 from .grouper import ErrorGrouper
 
 
-def extract_errors(lines):
-    """Extract error/warning lines from log input."""
-    error_pattern = re.compile(r'\b(ERROR|CRITICAL|FATAL|WARN|WARNING)\b', re.IGNORECASE)
+def extract_errors(lines, levels=None):
+    """Extract error/warning lines from log input.
+    
+    Args:
+        lines: List of log lines
+        levels: Optional list of severity levels to filter (e.g., ['ERROR', 'CRITICAL'])
+                If None, extracts all error/warning levels
+    """
+    if levels:
+        # Build pattern for specified levels only
+        level_pattern = '|'.join(re.escape(level) for level in levels)
+        error_pattern = re.compile(rf'\b({level_pattern})\b', re.IGNORECASE)
+    else:
+        error_pattern = re.compile(r'\b(ERROR|CRITICAL|FATAL|WARN|WARNING)\b', re.IGNORECASE)
     return [line for line in lines if error_pattern.search(line)]
 
 
@@ -68,6 +79,8 @@ Examples:
                        help='Similarity threshold for grouping (0.0-1.0, default: 0.85)')
     parser.add_argument('--since', type=str, metavar='TIME',
                        help='Filter errors newer than TIME (e.g., 1h, 30m, 1d, 2w)')
+    parser.add_argument('--level', type=str, action='append', metavar='LEVEL',
+                       help='Filter by severity level (e.g., ERROR, WARNING, CRITICAL). Can be specified multiple times.')
     parser.add_argument('--json', action='store_true', help='Output as JSON')
     
     args = parser.parse_args()
@@ -75,11 +88,14 @@ Examples:
     # Read input
     lines = read_input(args.files)
     
-    # Extract errors
-    errors = extract_errors(lines)
+    # Extract errors (with optional level filter)
+    errors = extract_errors(lines, levels=args.level)
     
     if not errors:
-        print("No errors found in input.", file=sys.stderr)
+        if args.level:
+            print(f"No {', '.join(args.level)} errors found in input.", file=sys.stderr)
+        else:
+            print("No errors found in input.", file=sys.stderr)
         sys.exit(0)
     
     # Apply time filter if specified

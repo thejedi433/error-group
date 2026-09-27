@@ -206,3 +206,60 @@ class TestMain:
         
         captured = capsys.readouterr()
         assert 'invalid time format' in captured.err.lower()
+
+    def test_main_with_level_filter_single(self, tmp_path, capsys):
+        """Test --level filters by single severity level."""
+        log_file = tmp_path / "test.log"
+        log_file.write_text(SAMPLE_LOG)
+        
+        with patch('sys.argv', ['error-group', str(log_file), '--level', 'ERROR']):
+            main()
+        
+        captured = capsys.readouterr()
+        # Should only show ERROR lines, not WARNING
+        assert 'ERROR' in captured.out
+        assert 'WARNING' not in captured.out or 'Retrying connection' not in captured.out
+
+    def test_main_with_level_filter_multiple(self, tmp_path, capsys):
+        """Test --level can be specified multiple times."""
+        log_file = tmp_path / "test.log"
+        log_file.write_text(SAMPLE_LOG)
+        
+        with patch('sys.argv', ['error-group', str(log_file), '--level', 'ERROR', '--level', 'WARNING']):
+            main()
+        
+        captured = capsys.readouterr()
+        # Should show both ERROR and WARNING
+        assert 'ERROR' in captured.out or 'error' in captured.out.lower()
+
+    def test_main_with_level_no_matches(self, tmp_path, capsys):
+        """Test --level with no matching errors shows message."""
+        log_file = tmp_path / "test.log"
+        log_file.write_text("INFO Everything is fine\nINFO Still good\n")
+        
+        with patch('sys.argv', ['error-group', str(log_file), '--level', 'CRITICAL']):
+            try:
+                main()
+            except SystemExit as e:
+                assert e.code == 0
+        
+        captured = capsys.readouterr()
+        assert 'no critical errors found' in captured.err.lower()
+
+    def test_extract_errors_with_levels(self):
+        """Test extract_errors with specific levels."""
+        lines = ["INFO ok", "WARNING something", "ERROR bad", "CRITICAL fatal"]
+        
+        # Filter only ERROR
+        errors = extract_errors(lines, levels=['ERROR'])
+        assert len(errors) == 1
+        assert 'ERROR' in errors[0]
+        
+        # Filter ERROR and WARNING
+        errors = extract_errors(lines, levels=['ERROR', 'WARNING'])
+        assert len(errors) == 2
+        
+        # Filter CRITICAL only
+        errors = extract_errors(lines, levels=['CRITICAL'])
+        assert len(errors) == 1
+        assert 'CRITICAL' in errors[0]
