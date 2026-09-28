@@ -28,8 +28,11 @@ python_functions = ["test_*"]
 addopts = ["-v", "--tb=short"]
 
 [tool.coverage.run]
-source = ["error_group"]
+source = ["src/error_group"]
 branch = true
+omit = [
+    "src/error_group/__main__.py",
+]
 
 [tool.coverage.report]
 exclude_lines = [
